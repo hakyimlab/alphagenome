@@ -1,0 +1,8 @@
+files/**
+predictions/**
+notebooks/**
+logs/**
+notes/**
+parsl_runinfo/**
+errors/**
+__pycache__/
