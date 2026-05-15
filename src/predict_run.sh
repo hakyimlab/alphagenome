@@ -1,18 +1,15 @@
 #!/bin/bash
-#SBATCH --job-name=alphagenome_run
-#SBATCH --account=beagle3-exusers
-#SBATCH --partition=beagle3
-#SBATCH --nodes=1
-#SBATCH --gres=gpu:8
-#SBATCH --cpus-per-task=16
-#SBATCH --mem=64G
-#SBATCH --time=02:00:00
-#SBATCH --output=/beagle3/haky/users/temi/projects/alphagenome/logs/profile_alphagenome.out
-#SBATCH --error=/beagle3/haky/users/temi/projects/alphagenome/logs/profile_alphagenome.err
+# Run the AlphaGenome pipeline on whichever GPUs are visible.
+# Intended for interactive use inside screen/tmux on an allocated node.
+#
+# Usage:
+#   bash predict_run.sh [--samples path] [--bed path] [--outdir path] [--no-profile]
+#
+# Defaults are the same as predict_run.sbatch.
 
 set -euo pipefail
 
-# ── Config ────────────────────────────────────────────────────────────────────
+# ── Defaults ──────────────────────────────────────────────────────────────────
 SCRIPT=/beagle3/haky/users/temi/projects/alphagenome/src/predict.py
 BED=/beagle3/haky/users/temi/projects/alphagenome/files/test_intervals.tsv
 FULL_SAMPLES=/beagle3/haky/users/temi/projects/alphagenome/files/test_samples.tsv
@@ -22,11 +19,22 @@ H5_DIR=$BASE_DIR/h5
 PROFILE_DIR=$BASE_DIR/profiles
 LOG_DIR=$BASE_DIR/logs
 
-N_WORKERS=1         # Parsl I/O threads per GPU process
+N_WORKERS=1
 PAD_BINS=0
 METHOD=mean
 OUTPUT_TYPES="CHIP_TF"
-PROFILE="--profile"   # set to "" to disable profiling
+PROFILE="--profile"
+
+# ── Arg parsing ───────────────────────────────────────────────────────────────
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --samples)   FULL_SAMPLES=$2; shift 2 ;;
+        --bed)       BED=$2;          shift 2 ;;
+        --outdir)    BASE_DIR=$2; H5_DIR=$BASE_DIR/h5; PROFILE_DIR=$BASE_DIR/profiles; LOG_DIR=$BASE_DIR/logs; shift 2 ;;
+        --no-profile) PROFILE="";    shift ;;
+        *) echo "Unknown arg: $1"; exit 1 ;;
+    esac
+done
 
 # ── Environment ───────────────────────────────────────────────────────────────
 module load cudnn/11.2
@@ -36,13 +44,14 @@ conda activate /beagle3/haky/users/temi/software/conda_envs/alphagenome-env-v2
 mkdir -p "$H5_DIR" "$PROFILE_DIR" "$LOG_DIR" \
          /beagle3/haky/users/temi/projects/alphagenome/logs
 
-# ── Detect available GPUs ─────────────────────────────────────────────────────
+# ── Detect GPUs ───────────────────────────────────────────────────────────────
 N_GPUS=$(nvidia-smi --query-gpu=name --format=csv,noheader | wc -l)
 N_SAMPLES=$(wc -l < "$FULL_SAMPLES")
+RUN_ID="$$"   # use PID as run identifier in place of SLURM_JOB_ID
 
 echo "=============================="
-echo "Job ID      : $SLURM_JOB_ID"
-echo "Node        : $SLURMD_NODENAME"
+echo "PID         : $RUN_ID"
+echo "Node        : $(hostname)"
 echo "GPUs found  : $N_GPUS"
 echo "Samples     : $N_SAMPLES"
 echo "H5 dir      : $H5_DIR"
@@ -51,9 +60,10 @@ echo "Log dir     : $LOG_DIR"
 echo "Start       : $(date)"
 echo "=============================="
 
-# ── Split all samples evenly across GPUs ──────────────────────────────────────
+# ── Split samples across GPUs ─────────────────────────────────────────────────
 mkdir -p /scratch/midway2/temi
 TMPDIR=$(mktemp -d /scratch/midway2/temi/alphagenome_XXXXXX)
+trap 'rm -rf "$TMPDIR"' EXIT
 
 split -n "l/$N_GPUS" "$FULL_SAMPLES" "$TMPDIR/samples_gpu_"
 
@@ -87,11 +97,11 @@ for (( gpu=0; gpu<N_GPUS; gpu++ )); do
         --output-types $OUTPUT_TYPES \
         --skip-existing \
         $PROFILE \
-        > "$LOG_DIR/gpu_${gpu}_${SLURM_JOB_ID}.log" 2>&1 &
+        > "$LOG_DIR/gpu_${gpu}_${RUN_ID}.log" 2>&1 &
     PIDS+=($!)
 done
 
-# ── Wait for all processes and collect exit codes ─────────────────────────────
+# ── Wait and collect exit codes ───────────────────────────────────────────────
 echo ""
 OVERALL=0
 for (( gpu=0; gpu<${#PIDS[@]}; gpu++ )); do
@@ -111,5 +121,4 @@ echo "Failed samples   :"
 cat "$H5_DIR/failed_samples.txt" 2>/dev/null || echo "  (none)"
 echo "=============================="
 
-rm -rf "$TMPDIR"
 exit $OVERALL

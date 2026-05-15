@@ -181,49 +181,53 @@ def main():
     completed, failed = [], []
     t_pipeline = time.time()
 
-    for i, (sample_id, fut) in enumerate(futures):
-        t_sample = time.time()
-        try:
-            t_seq = time.time()
-            sequences_dict  = fut.result()
-            seq_build_elapsed = time.time() - t_seq
+    try:
+        for i, (sample_id, fut) in enumerate(futures):
+            t_sample = time.time()
+            try:
+                t_seq = time.time()
+                sequences_dict  = fut.result()
+                seq_build_elapsed = time.time() - t_seq
 
-            result = predict_and_save(
-                model=model,
-                sample_id=sample_id,
-                sequences_dict=sequences_dict,
-                intervals_df=intervals_df,
-                output_dir=args.output_dir,
-                requested_output_names=args.output_types,
-                output_type_map=output_type_map,
-                window_size=WINDOW_SIZE,
-                pad_bins=args.pad_bins,
-                method=args.method,
-                profile=args.profile,
-            )
-            sample_elapsed = time.time() - t_sample
+                result = predict_and_save(
+                    model=model,
+                    sample_id=sample_id,
+                    sequences_dict=sequences_dict,
+                    intervals_df=intervals_df,
+                    output_dir=args.output_dir,
+                    requested_output_names=args.output_types,
+                    output_type_map=output_type_map,
+                    window_size=WINDOW_SIZE,
+                    pad_bins=args.pad_bins,
+                    method=args.method,
+                    profile=args.profile,
+                )
+                sample_elapsed = time.time() - t_sample
 
-            completed.append(result)
-            n_errs = len(result["errors"])
-            status = f"{n_errs} interval error(s)" if n_errs else "OK"
-            log.info(f"[{i+1}/{len(futures)}] {sample_id}  {sample_elapsed:.1f}s  {status}")
-            for err in result["errors"]:
-                log.warning(f"  {err['interval_id']}: {err['error'][:120]}")
+                completed.append(result)
+                n_errs = len(result["errors"])
+                status = f"{n_errs} interval error(s)" if n_errs else "OK"
+                log.info(f"[{i+1}/{len(futures)}] {sample_id}  {sample_elapsed:.1f}s  {status}")
+                for err in result["errors"]:
+                    log.warning(f"  {err['interval_id']}: {err['error'][:120]}")
 
-            if args.profile:
-                all_timings.append({
-                    "event": "seq_build", "sample_id": sample_id, "interval_id": "",
-                    "haplotype": "", "elapsed_s": round(seq_build_elapsed, 4),
-                })
-                all_timings.append({
-                    "event": "sample_total", "sample_id": sample_id, "interval_id": "",
-                    "haplotype": "", "elapsed_s": round(sample_elapsed, 4),
-                })
-                all_timings.extend(result["timings"])
+                if args.profile:
+                    all_timings.append({
+                        "event": "seq_build", "sample_id": sample_id, "interval_id": "",
+                        "haplotype": "", "elapsed_s": round(seq_build_elapsed, 4),
+                    })
+                    all_timings.append({
+                        "event": "sample_total", "sample_id": sample_id, "interval_id": "",
+                        "haplotype": "", "elapsed_s": round(sample_elapsed, 4),
+                    })
+                    all_timings.extend(result["timings"])
 
-        except Exception as exc:
-            failed.append({"sample_id": sample_id, "error": str(exc)})
-            log.error(f"[{i+1}/{len(futures)}] {sample_id} FAILED: {exc}")
+            except Exception as exc:
+                failed.append({"sample_id": sample_id, "error": str(exc)})
+                log.error(f"[{i+1}/{len(futures)}] {sample_id} FAILED: {exc}")
+
+    finally:
+        parsl.clear()
 
     pipeline_elapsed = time.time() - t_pipeline
     log.info(f"Done. Completed={len(completed)}  Failed={len(failed)}  "
@@ -236,7 +240,8 @@ def main():
         })
         profile_dir = Path(args.profile_dir if args.profile_dir else args.output_dir)
         os.makedirs(profile_dir, exist_ok=True)
-        gpu_id = os.environ.get("CUDA_VISIBLE_DEVICES", "0")
+        gpu_id = (os.environ.get("SLURM_ARRAY_TASK_ID")
+                  or os.environ.get("CUDA_VISIBLE_DEVICES", "0"))
         profile_file = profile_dir / f"profile_gpu{gpu_id}.tsv"
         write_profile(all_timings, profile_file)
 
@@ -244,8 +249,6 @@ def main():
         failed_file = Path(args.output_dir) / "failed_samples.txt"
         failed_file.write_text("\n".join(f"{f['sample_id']}\t{f['error']}" for f in failed) + "\n")
         log.warning(f"Failed samples written to {failed_file}")
-
-    parsl.clear()
 
 
 if __name__ == "__main__":
