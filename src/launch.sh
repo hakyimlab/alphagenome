@@ -2,47 +2,40 @@
 # Submit one SLURM job per GPU chunk.
 #
 # Usage:
-#   bash launch.sh [--n-gpus N] [--samples file] [--bed file] [--outdir dir] [--no-profile]
+#   bash launch.sh --config /path/to/run.yaml [--n-gpus N] [--samples file]
 #
-# Example:
-#   bash launch.sh --n-gpus 20
-#   bash launch.sh --n-gpus 10 --samples files/my_samples.tsv
+# The YAML config controls all inference parameters. --samples and --n-gpus
+# can override the YAML samples_file and parallelism at launch time.
 
 set -euo pipefail
 
 # ── Defaults ──────────────────────────────────────────────────────────────────
-N_GPUS=8
 SCRIPT=/beagle3/haky/users/temi/projects/alphagenome/src/predict.py
-BED=/beagle3/haky/users/temi/projects/alphagenome/files/test_intervals.tsv
-FULL_SAMPLES=/beagle3/haky/users/temi/projects/alphagenome/files/test_samples.tsv
-
-BASE_DIR=/beagle3/haky/users/temi/projects/alphagenome/predictions/run
-H5_DIR=$BASE_DIR/h5
-PROFILE_DIR=$BASE_DIR/profiles
-LOG_DIR=$BASE_DIR/logs
-
-N_WORKERS=1
-PAD_BINS=0
-METHOD=mean
-OUTPUT_TYPES="CHIP_TF"
-PROFILE="--profile"
+CONFIG=/beagle3/haky/users/temi/projects/alphagenome/configs/run.yaml
+N_GPUS=8
+FULL_SAMPLES=""   # if empty, read from YAML
 
 # ── Arg parsing ───────────────────────────────────────────────────────────────
 while [[ $# -gt 0 ]]; do
     case $1 in
+        --config)    CONFIG=$2;       shift 2 ;;
         --n-gpus)    N_GPUS=$2;       shift 2 ;;
         --samples)   FULL_SAMPLES=$2; shift 2 ;;
-        --bed)       BED=$2;          shift 2 ;;
-        --outdir)
-            BASE_DIR=$2
-            H5_DIR=$BASE_DIR/h5
-            PROFILE_DIR=$BASE_DIR/profiles
-            LOG_DIR=$BASE_DIR/logs
-            shift 2 ;;
-        --no-profile) PROFILE="";    shift ;;
         *) echo "Unknown arg: $1"; exit 1 ;;
     esac
 done
+
+# Read samples_file from YAML if not overridden on CLI
+if [[ -z "$FULL_SAMPLES" ]]; then
+    FULL_SAMPLES=$(python3 -c "import yaml,sys; c=yaml.safe_load(open('$CONFIG')); print(c['samples_file'])")
+fi
+
+# Read output dirs from YAML
+BASE_H5=$(python3 -c "import yaml,sys; c=yaml.safe_load(open('$CONFIG')); print(c['output_dir'])")
+PROFILE_DIR=$(python3 -c "import yaml,sys; c=yaml.safe_load(open('$CONFIG')); print(c.get('profile_dir', c['output_dir']))")
+BASE_DIR=$(dirname "$BASE_H5")
+LOG_DIR=$BASE_DIR/logs
+H5_DIR=$BASE_H5
 
 N_SAMPLES=$(wc -l < "$FULL_SAMPLES")
 
@@ -55,7 +48,6 @@ fi
 mkdir -p "$H5_DIR" "$PROFILE_DIR" "$LOG_DIR"
 
 # ── Split samples into per-GPU chunk files ────────────────────────────────────
-# Stored under BASE_DIR so they persist until jobs actually run.
 CHUNKS_DIR=$BASE_DIR/chunks_$(date +%Y%m%d_%H%M%S)
 mkdir -p "$CHUNKS_DIR"
 
@@ -73,16 +65,11 @@ done
 ARRAY_RANGE="0-$((N_GPUS - 1))"
 
 EXPORT_VARS="SCRIPT=$SCRIPT"
-EXPORT_VARS+=",BED=$BED"
+EXPORT_VARS+=",CONFIG=$CONFIG"
 EXPORT_VARS+=",H5_DIR=$H5_DIR"
 EXPORT_VARS+=",PROFILE_DIR=$PROFILE_DIR"
 EXPORT_VARS+=",LOG_DIR=$LOG_DIR"
 EXPORT_VARS+=",CHUNKS_DIR=$CHUNKS_DIR"
-EXPORT_VARS+=",N_WORKERS=$N_WORKERS"
-EXPORT_VARS+=",PAD_BINS=$PAD_BINS"
-EXPORT_VARS+=",METHOD=$METHOD"
-EXPORT_VARS+=",OUTPUT_TYPES=$OUTPUT_TYPES"
-EXPORT_VARS+=",PROFILE=$PROFILE"
 
 JOB_ID=$(sbatch \
     --array="$ARRAY_RANGE" \
@@ -95,6 +82,7 @@ JOB_ID=$(sbatch \
 echo ""
 echo "=============================="
 echo "Submitted job array : $JOB_ID"
+echo "Config              : $CONFIG"
 echo "Array range         : $ARRAY_RANGE  ($N_GPUS tasks)"
 echo "Samples             : $N_SAMPLES"
 echo "Chunks dir          : $CHUNKS_DIR"

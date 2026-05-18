@@ -3,38 +3,33 @@
 # Intended for interactive use inside screen/tmux on an allocated node.
 #
 # Usage:
-#   bash predict_run.sh [--samples path] [--bed path] [--outdir path] [--no-profile]
-#
-# Defaults are the same as predict_run.sbatch.
+#   bash predict_run.sh [--config path] [--samples path]
 
 set -euo pipefail
 
 # ── Defaults ──────────────────────────────────────────────────────────────────
 SCRIPT=/beagle3/haky/users/temi/projects/alphagenome/src/predict.py
-BED=/beagle3/haky/users/temi/projects/alphagenome/files/test_intervals.tsv
-FULL_SAMPLES=/beagle3/haky/users/temi/projects/alphagenome/files/test_samples.tsv
-
-BASE_DIR=/beagle3/haky/users/temi/projects/alphagenome/predictions/run
-H5_DIR=$BASE_DIR/h5
-PROFILE_DIR=$BASE_DIR/profiles
-LOG_DIR=$BASE_DIR/logs
-
-N_WORKERS=1
-PAD_BINS=0
-METHOD=mean
-OUTPUT_TYPES="CHIP_TF"
-PROFILE="--profile"
+CONFIG=/beagle3/haky/users/temi/projects/alphagenome/configs/run.yaml
+FULL_SAMPLES=""
 
 # ── Arg parsing ───────────────────────────────────────────────────────────────
 while [[ $# -gt 0 ]]; do
     case $1 in
+        --config)    CONFIG=$2;       shift 2 ;;
         --samples)   FULL_SAMPLES=$2; shift 2 ;;
-        --bed)       BED=$2;          shift 2 ;;
-        --outdir)    BASE_DIR=$2; H5_DIR=$BASE_DIR/h5; PROFILE_DIR=$BASE_DIR/profiles; LOG_DIR=$BASE_DIR/logs; shift 2 ;;
-        --no-profile) PROFILE="";    shift ;;
         *) echo "Unknown arg: $1"; exit 1 ;;
     esac
 done
+
+# Read from YAML if not overridden
+if [[ -z "$FULL_SAMPLES" ]]; then
+    FULL_SAMPLES=$(python3 -c "import yaml; c=yaml.safe_load(open('$CONFIG')); print(c['samples_file'])")
+fi
+BASE_H5=$(python3 -c "import yaml; c=yaml.safe_load(open('$CONFIG')); print(c['output_dir'])")
+PROFILE_DIR=$(python3 -c "import yaml; c=yaml.safe_load(open('$CONFIG')); print(c.get('profile_dir', c['output_dir']))")
+BASE_DIR=$(dirname "$BASE_H5")
+H5_DIR=$BASE_H5
+LOG_DIR=$BASE_DIR/logs
 
 # ── Environment ───────────────────────────────────────────────────────────────
 module load cudnn/11.2
@@ -86,17 +81,10 @@ for (( gpu=0; gpu<N_GPUS; gpu++ )); do
 
     echo "Launching GPU ${gpu} ($(wc -l < "$SAMPLE_FILE") samples) ..."
     CUDA_VISIBLE_DEVICES=$gpu python "$SCRIPT" \
+        --config       "$CONFIG" \
         --samples-file "$SAMPLE_FILE" \
-        --bed-file     "$BED" \
         --output-dir   "$H5_DIR" \
         --profile-dir  "$PROFILE_DIR" \
-        --device       cuda:0 \
-        --n-workers    "$N_WORKERS" \
-        --pad-bins     "$PAD_BINS" \
-        --method       "$METHOD" \
-        --output-types $OUTPUT_TYPES \
-        --skip-existing \
-        $PROFILE \
         > "$LOG_DIR/gpu_${gpu}_${RUN_ID}.log" 2>&1 &
     PIDS+=($!)
 done

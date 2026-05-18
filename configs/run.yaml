@@ -1,0 +1,34 @@
+# AlphaGenome inference configuration
+# All paths and parameters for predict.py
+# CLI flags override any value set here.
+
+# ── Data paths ─────────────────────────────────────────────────────────────────
+model_path:   /beagle3/haky/data/alpha_genome/weights/allfolds
+fasta_file:   /project2/haky/Data/hg_sequences/hg38/Homo_sapiens_assembly38.fasta
+vcf_dir:      /project2/haky/Data/1000G/vcf_snps_only
+vcf_pattern:  "ALL.{chrom}.shapeit2_integrated_SNPs_v2a_27022019.GRCh38.phased.vcf.gz"
+
+# ── Input files ────────────────────────────────────────────────────────────────
+bed_file:     /beagle3/haky/users/temi/projects/alphagenome/files/test_intervals.tsv
+samples_file: /beagle3/haky/users/temi/projects/alphagenome/files/test_samples.tsv
+
+# ── Output ─────────────────────────────────────────────────────────────────────
+output_dir:   /beagle3/haky/users/temi/projects/alphagenome/predictions/run_no_aggregate/h5
+profile_dir:  /beagle3/haky/users/temi/projects/alphagenome/predictions/run_no_aggregate/profiles
+
+# ── Inference parameters ───────────────────────────────────────────────────────
+window_size:   131072
+output_types:
+  - CHIP_TF
+  - CHIP_HISTONE
+  - ATAC
+  - DNASE 
+pad_bins:      2
+method:        mean        # mean or sum across bins (only used when aggregate: true)
+aggregate:     false        # true → (n_tracks,) per interval; false → (n_bins, n_tracks)
+full_output:   false        # true → raw model output (n_bins, n_tracks), no slicing at all
+
+# ── Runtime ────────────────────────────────────────────────────────────────────
+n_workers:      1          # Parsl I/O threads (keep low to avoid NFS contention)
+skip_existing:  true       # skip samples whose HDF5 already exists
+profile:        true       # write per-GPU timing TSV

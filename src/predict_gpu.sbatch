@@ -12,8 +12,7 @@
 set -euo pipefail
 
 # All variables injected by launch.sh via --export:
-#   SCRIPT, BED, H5_DIR, PROFILE_DIR, LOG_DIR,
-#   CHUNKS_DIR, N_WORKERS, PAD_BINS, METHOD, OUTPUT_TYPES, PROFILE
+#   SCRIPT, CONFIG, H5_DIR, PROFILE_DIR, LOG_DIR, CHUNKS_DIR
 
 SAMPLES_FILE="$CHUNKS_DIR/chunk_${SLURM_ARRAY_TASK_ID}.txt"
 
@@ -39,17 +38,10 @@ conda activate /beagle3/haky/users/temi/software/conda_envs/alphagenome-env-v2
 mkdir -p "$H5_DIR" "$PROFILE_DIR" "$LOG_DIR"
 
 CUDA_VISIBLE_DEVICES=0 python "$SCRIPT" \
+    --config       "$CONFIG" \
     --samples-file "$SAMPLES_FILE" \
-    --bed-file     "$BED" \
     --output-dir   "$H5_DIR" \
-    --profile-dir  "$PROFILE_DIR" \
-    --device       cuda:0 \
-    --n-workers    "$N_WORKERS" \
-    --pad-bins     "$PAD_BINS" \
-    --method       "$METHOD" \
-    --output-types $OUTPUT_TYPES \
-    --skip-existing \
-    $PROFILE
+    --profile-dir  "$PROFILE_DIR"
 
 echo "=============================="
 echo "End         : $(date)"

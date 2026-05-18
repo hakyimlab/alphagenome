@@ -67,18 +67,25 @@ def predict_and_save(
     window_size=WINDOW_SIZE,
     pad_bins=0,
     method="mean",
+    aggregate=True,
+    full_output=False,
     profile=False,
 ):
     """
-    Run predictions for all intervals of one sample and write aggregated HDF5.
+    Run predictions for all intervals of one sample and write HDF5.
 
     HDF5 structure:
         {sample_id}.h5
-        ├── attrs: sample_id, window_size, output_types, pad_bins, method
+        ├── attrs: sample_id, window_size, output_types, pad_bins, method, aggregate, full_output
         └── {interval_id}/
             ├── attrs: chrom, start, end
-            ├── haplotype1/  {output_name: shape (n_tracks,)}
-            └── haplotype2/  {output_name: shape (n_tracks,)}
+            ├── haplotype1/  {output_name: shape depends on mode — see below}
+            └── haplotype2/
+
+    Output shape per dataset:
+        full_output=True  → (n_bins, n_tracks)  raw model output, no slicing
+        aggregate=True    → (n_tracks,)          mean/sum across TSS bins
+        aggregate=False   → (n_bins, n_tracks)   sliced to TSS ± pad_bins
 
     When profile=True, returns a 'timings' list with per-interval inference
     and HDF5 write times.
@@ -94,6 +101,8 @@ def predict_and_save(
         f.attrs["output_types"] = ",".join(requested_output_names)
         f.attrs["pad_bins"]     = pad_bins
         f.attrs["method"]       = method
+        f.attrs["aggregate"]    = aggregate
+        f.attrs["full_output"]  = full_output
 
         for _, row in intervals_df.iterrows():
             interval_id  = row["interval_id"]
@@ -132,11 +141,19 @@ def predict_and_save(
                     for out_name in requested_output_names:
                         track = getattr(pred, PRED_ATTR_MAP[out_name], None)
                         if track is not None:
-                            agg = aggregate_prediction(
-                                track.values, orig_start, orig_end, padded_start,
-                                window_size, pad_bins, method,
-                            )
-                            hap_grp.create_dataset(out_name, data=np.array(agg), compression="gzip")
+                            if full_output:
+                                data = track.values
+                            elif aggregate:
+                                data = aggregate_prediction(
+                                    track.values, orig_start, orig_end, padded_start,
+                                    window_size, pad_bins, method,
+                                )
+                            else:
+                                data = slice_prediction(
+                                    track.values, orig_start, orig_end, padded_start,
+                                    window_size, pad_bins,
+                                )
+                            hap_grp.create_dataset(out_name, data=np.array(data), compression="gzip")
                     write_elapsed = time.time() - t_write
 
                     if profile:

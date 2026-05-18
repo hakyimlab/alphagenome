@@ -1,0 +1,132 @@
+
+
+
+```{r}
+library(tidyverse)
+library(rtracklayer)
+library(plyranges)
+```
+
+
+# I will be using GENCODE's basic gene annotation for gene annotations and for standardization when it comes to genes.
+https://www.gencodegenes.org/human/
+
+[It contains the basic annotations and the canonical transcripts](https://bioinformatics.stackexchange.com/questions/22551/differences-between-gencode-gtf-and-ensembl-gtf-files#:~:text=GTFs%3A%20I%20recommend%20using%20the%20Basic%20gene%20annotation%20which%20contains%20the%20canonical%20transcripts%20on%20primary%20chromosomes%2C%20but%20not%20alternative%20loci%20or%20patches.%20It%20is%20what%20I%20use%20productively%2C%20and%20what%20iirc%20GENCODE%20recommends%20for%20most%20users.)
+
+Version: Release 49 (GRCh38.p14)
+
+Data folder: /beagle3/haky/data/gene_annotations/GENCODE_v49
+
+Downloaded on Thur May 14 2026
+## Notes
+Helps: https://www.biostars.org/p/84686/
+bed files are 0-indexed, the start is the TSS - 1
+GTFs are 1-indexed, so the start is the TSS
+
+## Design choices. 
+I am going to be use 0-indexing so that I don't get confused in python.
+
+```{r}
+gene_annotation <- '/beagle3/haky/data/gene_annotations/GENCODE_v49/gencode.v49.basic.annotation.gtf.gz'
+```
+
+```{r}
+# dt_prot_cod <- data.table::fread("/beagle3/haky/users/temi/projects/alphagenome/files/protein_coding.tsv") %>% 
+#     dplyr::select(chr, start, end, gene_id, gene_name) %>% dplyr::mutate(chr = paste0('chr', chr)) %>% dplyr::filter(chr %in% paste0('chr', 1:22)) %>% dplyr::rename(chrom = chr)
+```
+
+
+
+
+```{r}
+# filter to protein coding genes
+# gtf_data[(gtf_data$gene_type == "protein_coding") & (gtf_data$type == 'gene'), ]
+# gtf_data[which((gtf_data$gene_type == "protein_coding") & (gtf_data$type == 'gene')), ]
+
+# select protein coding genes, and chromosomes 1 to 22
+# anchor the 5 prime end (which is the TSS) and subtract 1 to make it 0-indexed
+
+canonical_tx_annotations <- import(gene_annotation) %>%
+    plyranges::filter(gene_type == "protein_coding" & type == 'gene') %>%
+    plyranges::filter(seqnames %in% paste0('chr', 1:22)) %>% 
+    plyranges::select(gene_id, gene_name) %>%
+    plyranges::anchor_5p() %>%
+    plyranges::mutate(width = 1) %>%
+    data.table::as.data.table() %>% 
+    dplyr::rename(chrom = seqnames) %>%
+    dplyr::mutate(start = start - 1L) 
+
+head(canonical_tx_annotations)
+```
+
+
+
+```{r}
+canonical_tx_annotations %>%
+    data.table::fwrite("/beagle3/haky/users/temi/projects/alphagenome/files/protein_coding_genes.tss.annotations.tsv", sep = '\t', col.names = T, row.names = F, quote = F)
+```
+
+```{r}
+canonical_tx_annotations <- data.table::fread("/beagle3/haky/users/temi/projects/alphagenome/files/protein_coding_genes.tss.annotations.tsv")
+canonical_tx_annotations %>% dplyr::filter(gene_name == 'PRKCZ')
+```
+
+
+```{r}
+head(gtf_data)
+```
+
+## I want to select the canonical transcripts, and one transcript by gene
+
+```{r}
+canonical_tx <- gtf_data %>%
+    plyranges::filter(
+        type == 'transcript',
+        seqnames %in% paste0('chr', 1:22),
+        any(tag == 'Ensembl_canonical')
+    )
+
+```
+
+```{r}
+canonical_tx <- gtf_data %>%
+    plyranges::filter(seqnames %in% paste0('chr', 1:22), type == 'transcript', gene_type == 'protein_coding', transcript_type == 'protein_coding')
+                  tag == 'MANE_Select')
+```
+
+
+```{r}
+elementMetadata(gtf_data)$tag |> unique()
+```
+
+## Convert canonical transcripts to BED
+
+```{r}
+canonical_bed <- canonical_tx %>%
+    as.data.frame() %>%
+    dplyr::transmute(
+        chrom  = seqnames,
+        start  = start - 1L,   # GRanges is 1-based; BED is 0-based
+        end    = end,
+        name   = transcript_id,
+        score  = 0L,
+        strand = strand
+    )
+
+head(canonical_bed)
+```
+
+```{r}
+bed_out <- '/beagle3/haky/users/temi/projects/alphagenome/files/canonical_transcripts.bed'
+data.table::fwrite(canonical_bed, bed_out, sep = '\t', col.names = FALSE)
+message('Written: ', bed_out)
+```
+
+
+
+/beagle3/haky/users/tieri/miniconda3/envs/alphaGenomeEnv/bin/pip list > ./tieri_pkgs.txt
+/beagle3/haky/users/temi/software/conda_envs/alphagenome-env/bin/pip list > ./temi_pkgs.txt
+diff ./tieri_pkgs.txt ./temi_pkgs.txt
+
+
+conda create -p /beagle3/haky/users/temi/software/conda_envs/alphagenome-env-v2 --clone /beagle3/haky/users/tieri/miniconda3/envs/alphaGenomeEnv
