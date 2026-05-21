@@ -4,8 +4,8 @@ Inference pipeline for generating epigenomic predictions on genomic intervals us
 [AlphaGenome](https://deepmind.google/research/publications/alphagenomic/), locally with
 pre-downloaded model weights. Supports two modes:
 
-- **Personalized** — predictions on phased haplotype sequences per individual (uses VCF variants)
-- **Reference** — predictions on the GRCh38 reference sequence (no VCF needed)
+- **Personalized**: predictions on phased haplotype sequences per individual (uses VCF variants)
+- **Reference**: predictions on the GRCh38 reference sequence (no VCF needed)
 
 ### Date
 Fri May 15 2026
@@ -95,9 +95,9 @@ All inference settings live in a YAML file passed via `--config`. CLI flags in
 
 | `full_output` | `aggregate` | Shape saved per haplotype per interval |
 |---|---|---|
-| `true` | — | `(1024, n_tracks)` — raw model output |
-| `false` | `false` | `(n_bins, n_tracks)` — sliced to interval ± pad_bins |
-| `false` | `true` | `(n_tracks,)` — mean/sum across TSS bins |
+| `true` |  | `(1024, n_tracks)`: raw model output |
+| `false` | `false` | `(n_bins, n_tracks)`: sliced to interval ± pad_bins |
+| `false` | `true` | `(n_tracks,)`: mean/sum across TSS bins |
 
 ### Runtime
 
@@ -111,7 +111,7 @@ All inference settings live in a YAML file passed via `--config`. CLI flags in
 
 ## Example configs
 
-### Aggregated scalar — smallest output, fastest downstream
+### Aggregated scalar; smallest output, fastest downstream
 
 ```yaml
 output_types: [CHIP_TF]
@@ -135,7 +135,7 @@ full_output:  false
 Stores a `(n_bins, n_tracks)` matrix per interval, where `n_bins` depends on interval
 length and `pad_bins`.
 
-### Full raw output — largest, no slicing
+### Full raw output; largest, no slicing
 
 ```yaml
 output_types: [CHIP_TF]
