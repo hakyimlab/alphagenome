@@ -7,17 +7,17 @@
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=32G
 #SBATCH --time=24:00:00
-# --output and --error are set by alphagenomeInfer.sh via -o / -e flags
+# --output and --error are set by launch.sh via -o / -e flags
 
 set -euo pipefail
 
-# Variables injected by alphagenomeInfer.sh via --export:
+# All variables injected by launch.sh via --export:
 #   SCRIPT, CONFIG, H5_DIR, PROFILE_DIR, LOG_DIR, CHUNKS_DIR
 
 SAMPLES_FILE="$CHUNKS_DIR/chunk_${SLURM_ARRAY_TASK_ID}.txt"
 
 if [[ ! -f "$SAMPLES_FILE" ]]; then
-    echo "No sample chunk for task $SLURM_ARRAY_TASK_ID — skipping"
+    echo "No sample file for task $SLURM_ARRAY_TASK_ID — skipping"
     exit 0
 fi
 
@@ -26,7 +26,6 @@ N_SAMPLES=$(wc -l < "$SAMPLES_FILE")
 echo "=============================="
 echo "Job         : ${SLURM_ARRAY_JOB_ID}_${SLURM_ARRAY_TASK_ID}"
 echo "Node        : $SLURMD_NODENAME"
-echo "Mode        : personalized"
 echo "Samples     : $N_SAMPLES"
 echo "Chunk file  : $SAMPLES_FILE"
 echo "Start       : $(date)"

@@ -6,3 +6,6 @@ notes/**
 parsl_runinfo/**
 errors/**
 __pycache__/
+misc/**
+pipelines/**
+README_files/**

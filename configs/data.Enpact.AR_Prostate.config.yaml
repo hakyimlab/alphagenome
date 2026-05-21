@@ -9,26 +9,24 @@ vcf_dir:      /project2/haky/Data/1000G/vcf_snps_only
 vcf_pattern:  "ALL.{chrom}.shapeit2_integrated_SNPs_v2a_27022019.GRCh38.phased.vcf.gz"
 
 # ── Input files ────────────────────────────────────────────────────────────────
-bed_file:     /beagle3/haky/users/temi/projects/alphagenome/files/test_intervals_02.tsv
-samples_file: /beagle3/haky/users/temi/projects/alphagenome/files/test_samples_02.tsv
+bed_file:     /beagle3/haky/users/temi/projects/alphagenome/files/data.Enpact.AR_Prostate.tsv
 
 # ── Output ─────────────────────────────────────────────────────────────────────
-output_dir:   /beagle3/haky/users/temi/projects/alphagenome/predictions/run_no_slicing_02/h5
-profile_dir:  /beagle3/haky/users/temi/projects/alphagenome/predictions/run_no_slicing_02/profiles
+output_dir:   /scratch/midway2/temi/alphagenome/predictions.Enpact.AR_Prostate/reference/h5
+profile_dir:  /scratch/midway2/temi/alphagenome/predictions.Enpact.AR_Prostate/reference/profiles
 
 # ── Inference parameters ───────────────────────────────────────────────────────
 window_size:   131072
 output_types:
-  - CHIP_TF
+  - CHIP_TF 
   - CHIP_HISTONE
   - ATAC
   - DNASE 
   - CAGE
-  - RNA_SEQ
-pad_bins:      2
+pad_bins:      1
 method:        mean        # mean or sum across bins (only used when aggregate: true)
-aggregate:     false        # true → (n_tracks,) per interval; false → (n_bins, n_tracks)
-full_output: true         # saves 
+aggregate:     true        # true → (n_tracks,) per interval; false → (n_bins, n_tracks)
+full_output:   false        # true → raw model output (n_bins, n_tracks), no slicing at all
 
 # ── Runtime ────────────────────────────────────────────────────────────────────
 n_workers:      1          # Parsl I/O threads (keep low to avoid NFS contention)

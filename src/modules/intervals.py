@@ -19,7 +19,7 @@ def pad_interval_to_window(chrom, start, end, window_size=WINDOW_SIZE):
 def build_intervals_table(bed_file, window_size=WINDOW_SIZE):
     df = pd.read_csv(
         bed_file, sep="\t",
-        usecols=[0, 1, 2],
+        usecols=['chrom', 'start', 'end'],
         dtype={"chrom": str, "start": int, "end": int},
     )
     df["interval_id"] = (
