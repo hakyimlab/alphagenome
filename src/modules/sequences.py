@@ -24,7 +24,11 @@ def build_sequences_for_sample(
         return "".join(c if c.upper() in "ACGT" else "N" for c in seq).upper()
 
     def _ref_seq(fasta, chrom, padded_start, padded_end):
-        return _clean(str(fasta[chrom][padded_start:padded_end].seq))
+        seq = _clean(str(fasta[chrom][padded_start:padded_end].seq))
+        expected = padded_end - padded_start
+        if len(seq) < expected:
+            seq = seq + "N" * (expected - len(seq))
+        return seq
 
     fasta     = Fasta(fasta_file)
     sequences = {}

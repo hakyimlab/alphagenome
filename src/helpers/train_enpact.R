@@ -12,7 +12,7 @@ option_list <- list(
     make_option("--metadata", help='extra information for file-naming'),
     make_option("--weights_file", help='output txt file containing the weights'),
     make_option("--model_rds_file", help='output rds file of the glmnet object'),
-    make_option("--ncores", default = 12L, type = 'integer')
+    make_option("--ncores", default = 40L, type = 'integer')
 )
 
 opt <- parse_args(OptionParser(option_list=option_list))

@@ -2,7 +2,7 @@
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=4
-#SBATCH --mem-per-cpu=12G
+#SBATCH --mem-per-cpu=4G
 #SBATCH --job-name=evaluate_enpact
 #SBATCH --account=pi-haky
 #SBATCH --output=/beagle3/haky/users/temi/projects/alphagenome/logs/evaluate_enpact_%j.out

@@ -1,4 +1,4 @@
-# alphagenome
+# Inference with alphagenome
 
 Inference pipeline for generating epigenomic predictions on genomic intervals using
 [AlphaGenome](https://deepmind.google/research/publications/alphagenomic/), locally with
@@ -7,11 +7,11 @@ pre-downloaded model weights. Supports two modes:
 - **Personalized**: predictions on phased haplotype sequences per individual (uses VCF variants)
 - **Reference**: predictions on the GRCh38 reference sequence (no VCF needed)
 
-### Date
-Fri May 15 2026
-
 ### Author
 Temi
+
+### Date
+Fri May 15 2026
 
 ---
 

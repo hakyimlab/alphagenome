@@ -7,8 +7,8 @@
 #SBATCH --account=pi-haky
 #SBATCH --output=/beagle3/haky/users/temi/projects/alphagenome/logs/train_enpact_%j.out
 #SBATCH --error=/beagle3/haky/users/temi/projects/alphagenome/logs/train_enpact_%j.err
-#SBATCH --time=02:00:00
-#SBATCH --partition=bigmem
+#SBATCH --time=06:00:00
+#SBATCH --partition=caslake
 
 date
 

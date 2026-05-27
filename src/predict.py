@@ -19,6 +19,7 @@ os.environ.setdefault("XLA_FLAGS", " ".join([
     "--xla_gpu_deterministic_ops",
     "--xla_gpu_enable_scatter_determinism_expander=True",
     "--xla_gpu_enable_triton_gemm=False",
+    "--xla_gpu_autotune_level=0",
 ]))
 os.environ.setdefault("XLA_PYTHON_CLIENT_MEM_FRACTION", "0.9")
 
@@ -80,6 +81,9 @@ def build_reference_sequences(intervals_df, fasta_file):
     for _, row in intervals_df.iterrows():
         try:
             seq = _clean(str(fasta[row.chrom][row.padded_start:row.padded_end].seq))
+            expected = int(row.padded_end) - int(row.padded_start)
+            if len(seq) < expected:
+                seq = seq + "N" * (expected - len(seq))
             sequences[row.interval_id] = {"hap1": seq}
         except Exception as exc:
             sequences[row.interval_id] = {"error": str(exc)}

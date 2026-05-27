@@ -17,6 +17,7 @@ def pad_interval_to_window(chrom, start, end, window_size=WINDOW_SIZE):
 
 
 def build_intervals_table(bed_file, window_size=WINDOW_SIZE):
+    import warnings
     df = pd.read_csv(
         bed_file, sep="\t",
         usecols=['chrom', 'start', 'end'],
@@ -25,6 +26,11 @@ def build_intervals_table(bed_file, window_size=WINDOW_SIZE):
     df["interval_id"] = (
         df["chrom"] + "_" + df["start"].astype(str) + "_" + df["end"].astype(str)
     )
+    n_before = len(df)
+    df = df.drop_duplicates(subset="interval_id").reset_index(drop=True)
+    n_dropped = n_before - len(df)
+    if n_dropped:
+        warnings.warn(f"{n_dropped} duplicate interval ID(s) dropped from {bed_file}")
     padded = df.apply(
         lambda r: pad_interval_to_window(r.chrom, r.start, r.end, window_size), axis=1
     )
