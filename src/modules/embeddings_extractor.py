@@ -30,7 +30,11 @@ Key function
 build_embedding_apply_fn(metadata)
     Returns a jax.jit'd function:
         (params, state, dna_sequence, organism_index)
-        -> (predictions_dict, Embeddings)
+        -> Embeddings
+
+    predictions_dict is NOT returned so XLA can eliminate all output-head
+    computations (CHIP_TF, CHIP_HISTONE, DNASE, ATAC, CAGE, RNA_SEQ heads)
+    via dead-code elimination.
 
     Haiku parameter keys are fully determined by the module name hierarchy.
     AlphaGenome is always instantiated with name='alphagenome', so the
@@ -69,7 +73,7 @@ Usage example
     seq_enc  = model._one_hot_encoder.encode(sequence_str)
     seq_arr  = jax.device_put(np.asarray(seq_enc)[np.newaxis], device)
     org_arr  = jax.device_put(np.full((1,), 0, dtype=np.int32), device)
-    _, emb   = apply_fn_emb(model._params, model._state, seq_arr, org_arr)
+    emb      = apply_fn_emb(model._params, model._state, seq_arr, org_arr)
     emb_128  = np.array(jax.device_get(emb.embeddings_128bp[0]))   # (1024, 3072)
     emb_1bp  = np.array(jax.device_get(emb.embeddings_1bp[0]))     # (131072, 1536)
 """
@@ -108,10 +112,10 @@ def build_embedding_apply_fn(metadata, *, num_splice_sites: int = 512,
         Signature::
 
             apply_fn_emb(params, state, dna_sequence, organism_index)
-            -> (predictions_dict, Embeddings)
+            -> Embeddings
 
-        ``predictions_dict`` is the raw dict produced by AlphaGenome (same as
-        what the standard apply_fn returns before ``extract_predictions``).
+        predictions_dict is NOT returned — XLA eliminates all output-head
+        computations (CHIP_TF, CHIP_HISTONE, DNASE, ATAC, CAGE, RNA_SEQ).
         ``embeddings.embeddings_128bp`` has shape ``(B, 1024, 3072)``.
     """
     import haiku as hk
@@ -132,10 +136,10 @@ def build_embedding_apply_fn(metadata, *, num_splice_sites: int = 512,
         return predictions, embeddings
 
     def _apply(params, state, dna_sequence, organism_index):
-        (predictions, embeddings), _ = _forward_with_embeddings.apply(
+        (_, embeddings), _ = _forward_with_embeddings.apply(
             params, state, None, dna_sequence, organism_index
         )
-        return predictions, embeddings
+        return embeddings
 
     return jax.jit(_apply)
 
@@ -165,7 +169,7 @@ def _run_embedding_forward(ag_model, sequence: str, organism_index: int = 0):
         org_arr = jax.device_put(
             np.full((1,), organism_index, dtype=np.int32), dev
         )
-        _, embeddings = ag_model._embedding_apply_fn(
+        embeddings = ag_model._embedding_apply_fn(
             ag_model._params, ag_model._state, seq_arr, org_arr
         )
     return embeddings

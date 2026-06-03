@@ -193,11 +193,41 @@ def build_personalized_sequences_for_sample(
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Shared aggregation helper
+# Shared aggregation helpers
 # ─────────────────────────────────────────────────────────────────────────────
 
-def _aggregate(arr, aggregate):
-    """Reduce (bins, dim) → (dim,) via mean or max, or return unchanged."""
+def _resolve_bins(bins_spec, n_bins):
+    """
+    Convert a bins spec into a slice or list of indices.
+
+    Supported forms:
+        None / "all"      → None (use all bins)
+        "center:N"        → middle N bins: [(n_bins-N)//2 : (n_bins-N)//2+N]
+        "START:END"       → slice(START, END)  both non-negative integers
+        [i, j, ...]       → passed through as-is (list of int indices from YAML)
+    """
+    if bins_spec is None or bins_spec == "all":
+        return None
+    if isinstance(bins_spec, list):
+        return bins_spec
+    if isinstance(bins_spec, str):
+        if bins_spec.startswith("center:"):
+            n = int(bins_spec.split(":")[1])
+            start = (n_bins - n) // 2
+            return slice(start, start + n)
+        parts = bins_spec.split(":")
+        if len(parts) == 2:
+            return slice(int(parts[0]), int(parts[1]))
+    raise ValueError(
+        f"Cannot parse bins spec: {bins_spec!r}. "
+        "Use 'all', 'center:N', 'START:END', or a YAML list of ints."
+    )
+
+
+def _aggregate(arr, aggregate, bins=None):
+    """Optionally slice bins, then reduce (bins, dim) → (dim,) or return unchanged."""
+    if bins is not None:
+        arr = arr[_resolve_bins(bins, arr.shape[0])]
     if aggregate == "mean":
         return arr.mean(axis=0)
     elif aggregate == "max":
@@ -218,6 +248,7 @@ def extract_reference_embeddings_and_save(
     output_dir,
     shard_id,
     aggregate,
+    bins=None,
     output_types=("embeddings_128bp",),
     window_size=131072,
 ):
@@ -245,6 +276,7 @@ def extract_reference_embeddings_and_save(
 
     output_file = os.path.join(output_dir, f"reference_emb_shard{shard_id}.h5")
     agg_str     = aggregate if aggregate is not None else "none"
+    bins_str    = str(bins) if bins is not None else "all"
     errors, n_ok = [], 0
     encoder = model._one_hot_encoder
 
@@ -252,7 +284,8 @@ def extract_reference_embeddings_and_save(
         f.attrs.update({
             "sample_id": "reference", "mode": "reference",
             "shard_id": shard_id, "window_size": window_size,
-            "aggregate": agg_str, "output_types": ",".join(output_types),
+            "aggregate": agg_str, "bins": bins_str,
+            "output_types": ",".join(output_types),
         })
 
         for _, row in intervals_df.iterrows():
@@ -270,16 +303,16 @@ def extract_reference_embeddings_and_save(
                         np.asarray(encoder.encode(seq_data["hap1"]))[np.newaxis], dev
                     )  # (1, W, 4)
                     org_arr = jax.device_put(np.full((1,), 0, dtype=np.int32), dev)
-                    _, embeddings = apply_fn_emb(model._params, model._state, seq_arr, org_arr)
+                    embeddings = apply_fn_emb(model._params, model._state, seq_arr, org_arr)
 
                 # JAX arrays remain on GPU outside the guard; index and aggregate here.
                 results = {}
                 if save_128bp:
                     results["embeddings_128bp"] = _aggregate(
-                        embeddings.embeddings_128bp[0], aggregate)
+                        embeddings.embeddings_128bp[0], aggregate, bins)
                 if save_1bp:
                     results["embeddings_1bp"] = _aggregate(
-                        embeddings.embeddings_1bp[0], aggregate)
+                        embeddings.embeddings_1bp[0], aggregate, bins)
 
                 arrays = {k: np.array(jax.device_get(v)).astype(np.float32)
                           for k, v in results.items()}
@@ -310,6 +343,7 @@ def extract_personalized_embeddings_and_save(
     intervals_df,
     output_dir,
     aggregate,
+    bins=None,
     output_types=("embeddings_128bp",),
     window_size=131072,
 ):
@@ -342,6 +376,7 @@ def extract_personalized_embeddings_and_save(
 
     output_file = os.path.join(output_dir, f"{sample_id}_emb.h5")
     agg_str     = aggregate if aggregate is not None else "none"
+    bins_str    = str(bins) if bins is not None else "all"
     errors, n_ok = [], 0
     encoder = model._one_hot_encoder
 
@@ -349,7 +384,7 @@ def extract_personalized_embeddings_and_save(
         f.attrs.update({
             "sample_id": sample_id, "mode": "personalized",
             "window_size": window_size, "aggregate": agg_str,
-            "output_types": ",".join(output_types),
+            "bins": bins_str, "output_types": ",".join(output_types),
         })
 
         for _, row in intervals_df.iterrows():
@@ -374,20 +409,20 @@ def extract_personalized_embeddings_and_save(
                         ]), dev
                     )  # (2, W, 4)
                     org_arr = jax.device_put(np.full((2,), 0, dtype=np.int32), dev)
-                    _, embeddings = apply_fn_emb(model._params, model._state, seq_arr, org_arr)
+                    embeddings = apply_fn_emb(model._params, model._state, seq_arr, org_arr)
 
                 # JAX arrays remain on GPU outside the guard; index and aggregate here.
                 results = {}
                 if save_128bp:
                     results["embeddings_128bp_hap1"] = _aggregate(
-                        embeddings.embeddings_128bp[0], aggregate)
+                        embeddings.embeddings_128bp[0], aggregate, bins)
                     results["embeddings_128bp_hap2"] = _aggregate(
-                        embeddings.embeddings_128bp[1], aggregate)
+                        embeddings.embeddings_128bp[1], aggregate, bins)
                 if save_1bp:
                     results["embeddings_1bp_hap1"] = _aggregate(
-                        embeddings.embeddings_1bp[0], aggregate)
+                        embeddings.embeddings_1bp[0], aggregate, bins)
                     results["embeddings_1bp_hap2"] = _aggregate(
-                        embeddings.embeddings_1bp[1], aggregate)
+                        embeddings.embeddings_1bp[1], aggregate, bins)
 
                 arrays = {k: np.array(jax.device_get(v)).astype(np.float32)
                           for k, v in results.items()}
@@ -434,6 +469,11 @@ def parse_args():
     p.add_argument("--aggregate",    default=None,
                    choices=["mean", "max", "none"],
                    help="Aggregate spatial bins: mean, max, or none (full)")
+    p.add_argument("--bins",         default=None,
+                   help="Bin selection before aggregation. "
+                        "Supported: 'all' (default), 'center:N' (middle N bins), "
+                        "'START:END' (explicit slice), or a YAML list of ints. "
+                        "embeddings_128bp has 1024 bins; embeddings_1bp has 131072.")
     p.add_argument("--output-types", default=None,
                    help="Comma-separated: embeddings_128bp[,embeddings_1bp] "
                         "(default: embeddings_128bp). Both computed in one pass.")
@@ -464,6 +504,7 @@ def parse_args():
         "n_shards":      cfg.get("n_shards",     1),
         "shard_id":      cfg.get("shard_id",     None),
         "aggregate":     cfg.get("aggregate",    "mean"),
+        "bins":          cfg.get("bins",         None),
         "output_types":  cfg.get("output_types", "embeddings_128bp"),
         "device":        cfg.get("device",       "cuda:0"),
         "skip_existing": cfg.get("skip_existing", True),
@@ -480,6 +521,13 @@ def parse_args():
     # "none" string → Python None for aggregate
     if args.aggregate == "none":
         args.aggregate = None
+
+    # Validate bins spec early (before GPU work); use dummy n_bins=1024
+    if args.bins not in (None, "all"):
+        try:
+            _resolve_bins(args.bins, 1024)
+        except (ValueError, TypeError) as exc:
+            p.error(str(exc))
 
     # Parse comma-separated output_types → list
     if isinstance(args.output_types, str):
@@ -518,6 +566,7 @@ def main():
     log.info(f"Mode         : {args.mode}")
     log.info(f"Output types : {args.output_types}")
     log.info(f"Aggregate    : {args.aggregate!r}")
+    log.info(f"Bins         : {args.bins!r}")
     if args.config:
         log.info(f"Config       : {args.config}")
 
@@ -587,6 +636,7 @@ def main():
             output_dir=args.output_dir,
             shard_id=args.shard_id,
             aggregate=args.aggregate,
+            bins=args.bins,
             output_types=args.output_types,
             window_size=131072,
         )
@@ -643,6 +693,7 @@ def main():
                 intervals_df=intervals_df,
                 output_dir=args.output_dir,
                 aggregate=args.aggregate,
+                bins=args.bins,
                 output_types=args.output_types,
                 window_size=131072,
             )
