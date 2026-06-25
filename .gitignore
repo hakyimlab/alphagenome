@@ -10,3 +10,4 @@ misc/**
 pipelines/**
 README_files/**
 .snakemake
+experiments/**

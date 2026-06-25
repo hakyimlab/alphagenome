@@ -5,19 +5,30 @@
 # ── Data paths ─────────────────────────────────────────────────────────────────
 model_path:   /beagle3/haky/data/alpha_genome/weights/allfolds
 fasta_file:   /project2/haky/Data/hg_sequences/hg38/Homo_sapiens_assembly38.fasta
+vcf_dir:      /project2/haky/Data/baca_cwas/vcfs/hg38/vcf_chr_only_hg38
+vcf_pattern:  "{chrom}_CWAS_SNPs_2023-05-30_phased.vcf.gz"
 
 # ── Input files ────────────────────────────────────────────────────────────────
-bed_file:     /beagle3/haky/users/temi/projects/alphagenome/files/data.Enpact.AR_Prostate.tsv
+bed_file:     /beagle3/haky/users/temi/projects/alphagenome/experiments/cross_individuals/files/loci.5000.BACA.AR_Prostate.tsv
+samples_file: /beagle3/haky/users/temi/projects/alphagenome/experiments/cross_individuals/files/individuals.BACA.AR_Prostate.tsv
 
 # ── Output ─────────────────────────────────────────────────────────────────────
-output_dir:   /scratch/midway2/temi/alphagenome/predictions.Enpact.AR_Prostate/reference_middle_embeddings_AR_Prostate/h5
+output_dir:   /beagle3/haky/users/temi/projects/alphagenome/predictions/cross_individuals_5000loci/h5
+profile_dir:  /beagle3/haky/users/temi/projects/alphagenome/predictions/cross_individuals_5000loci/profiles
 
 # ── Inference parameters ───────────────────────────────────────────────────────
-n_shards: 8
 window_size:   131072
-output_types: "embeddings_128bp"
-aggregate:     mean        # true → (n_tracks,) per interval; false → (n_bins, n_tracks)
-bins: [510, 511, 512, 513]
+output_types:
+  - CHIP_TF 
+  - CHIP_HISTONE
+  - ATAC
+  - DNASE 
+  - CAGE 
+pad_bins:      1
+pad_bp: 256
+method:        mean        # mean or sum across bins (only used when aggregate: true)
+aggregate:     true        # true → (n_tracks,) per interval; false → (n_bins, n_tracks)
+full_output:   false        # true → raw model output (n_bins, n_tracks), no slicing at all
 
 # ── Runtime ────────────────────────────────────────────────────────────────────
 n_workers:      1          # Parsl I/O threads (keep low to avoid NFS contention)

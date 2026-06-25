@@ -56,7 +56,7 @@ os.environ.setdefault("XLA_FLAGS", " ".join([
     "--xla_gpu_deterministic_ops",
     "--xla_gpu_enable_scatter_determinism_expander=True",
     "--xla_gpu_enable_triton_gemm=False",
-    "--xla_gpu_autotune_level=0",
+    #"--xla_gpu_autotune_level=0",
 ]))
 os.environ.setdefault("XLA_PYTHON_CLIENT_MEM_FRACTION", "0.9")
 
@@ -205,6 +205,7 @@ def _resolve_bins(bins_spec, n_bins):
         "center:N"        → middle N bins: [(n_bins-N)//2 : (n_bins-N)//2+N]
         "START:END"       → slice(START, END)  both non-negative integers
         [i, j, ...]       → passed through as-is (list of int indices from YAML)
+        "i+j+k+..."       → list of int indices, '+'-separated (shell-safe form)
     """
     if bins_spec is None or bins_spec == "all":
         return None
@@ -215,19 +216,25 @@ def _resolve_bins(bins_spec, n_bins):
             n = int(bins_spec.split(":")[1])
             start = (n_bins - n) // 2
             return slice(start, start + n)
+        if "+" in bins_spec:
+            return [int(x) for x in bins_spec.split("+")]
         parts = bins_spec.split(":")
         if len(parts) == 2:
             return slice(int(parts[0]), int(parts[1]))
     raise ValueError(
         f"Cannot parse bins spec: {bins_spec!r}. "
-        "Use 'all', 'center:N', 'START:END', or a YAML list of ints."
+        "Use 'all', 'center:N', 'START:END', 'i+j+k' (shell-safe list), "
+        "or a YAML list of ints."
     )
 
 
 def _aggregate(arr, aggregate, bins=None):
     """Optionally slice bins, then reduce (bins, dim) → (dim,) or return unchanged."""
     if bins is not None:
-        arr = arr[_resolve_bins(bins, arr.shape[0])]
+        idx = _resolve_bins(bins, arr.shape[0])
+        if isinstance(idx, list):
+            idx = np.array(idx)
+        arr = arr[idx]
     if aggregate == "mean":
         return arr.mean(axis=0)
     elif aggregate == "max":

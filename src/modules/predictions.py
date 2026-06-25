@@ -18,22 +18,24 @@ PRED_ATTR_MAP = {
 
 
 def slice_prediction(arr, orig_start, orig_end, padded_start,
-                     window_size=WINDOW_SIZE, pad_bins=0):
+                     window_size=WINDOW_SIZE, pad_bins=0, pad_bp=0):
     """
     Slice model output back to the original interval.
 
     Binned outputs (e.g. CHIP_TF): always returns at least 2 bins (the two middle
     bins straddling the TSS), then expands by pad_bins on each side.
-    Nucleotide-resolution outputs: pad_bins treated as bp.
+    Nucleotide-resolution outputs: expands by pad_bp basepairs on each side.
     """
     n_rows = arr.shape[0]
     offset = orig_start - padded_start
     length = orig_end   - orig_start
     if n_rows == window_size:
-        start_idx = max(0, offset - pad_bins)
-        end_idx   = min(n_rows, offset + length + pad_bins)
+        # 1bp resolution — pad_bp controls how many basepairs to add each side
+        start_idx = max(0, offset - pad_bp)
+        end_idx   = min(n_rows, offset + length + pad_bp)
         return arr[start_idx:end_idx, :]
     else:
+        # binned — pad_bins controls how many bins to add each side
         bin_size  = window_size // n_rows
         bin_start = offset // bin_size
         bin_end   = (offset + length + bin_size - 1) // bin_size
@@ -45,9 +47,9 @@ def slice_prediction(arr, orig_start, orig_end, padded_start,
 
 
 def aggregate_prediction(arr, orig_start, orig_end, padded_start,
-                         window_size=WINDOW_SIZE, pad_bins=0, method="mean"):
-    """Slice then reduce across bins. Returns 1D array of shape (n_tracks,)."""
-    sliced = slice_prediction(arr, orig_start, orig_end, padded_start, window_size, pad_bins)
+                         window_size=WINDOW_SIZE, pad_bins=0, pad_bp=0, method="mean"):
+    """Slice then reduce across bins/bp. Returns 1D array of shape (n_tracks,)."""
+    sliced = slice_prediction(arr, orig_start, orig_end, padded_start, window_size, pad_bins, pad_bp)
     if method == "mean":
         return sliced.mean(axis=0)
     elif method == "sum":
@@ -66,6 +68,7 @@ def predict_and_save(
     output_type_map,
     window_size=WINDOW_SIZE,
     pad_bins=0,
+    pad_bp=0,
     method="mean",
     aggregate=True,
     full_output=False,
@@ -76,7 +79,7 @@ def predict_and_save(
 
     HDF5 structure:
         {sample_id}.h5
-        ├── attrs: sample_id, window_size, output_types, pad_bins, method, aggregate, full_output
+        ├── attrs: sample_id, window_size, output_types, pad_bins, pad_bp, method, aggregate, full_output
         └── {interval_id}/
             ├── attrs: chrom, start, end
             ├── haplotype1/  {output_name: shape depends on mode — see below}
@@ -84,8 +87,8 @@ def predict_and_save(
 
     Output shape per dataset:
         full_output=True  → (n_bins, n_tracks)  raw model output, no slicing
-        aggregate=True    → (n_tracks,)          mean/sum across TSS bins
-        aggregate=False   → (n_bins, n_tracks)   sliced to TSS ± pad_bins
+        aggregate=True    → (n_tracks,)          mean/sum across TSS bins/bp
+        aggregate=False   → (n_bins, n_tracks)   sliced to TSS ± pad_bins (binned) or ± pad_bp (1bp)
 
     When profile=True, returns a 'timings' list with per-interval inference
     and HDF5 write times.
@@ -100,6 +103,7 @@ def predict_and_save(
         f.attrs["window_size"]  = window_size
         f.attrs["output_types"] = ",".join(requested_output_names)
         f.attrs["pad_bins"]     = pad_bins
+        f.attrs["pad_bp"]       = pad_bp
         f.attrs["method"]       = method
         f.attrs["aggregate"]    = aggregate
         f.attrs["full_output"]  = full_output
@@ -146,12 +150,12 @@ def predict_and_save(
                             elif aggregate:
                                 data = aggregate_prediction(
                                     track.values, orig_start, orig_end, padded_start,
-                                    window_size, pad_bins, method,
+                                    window_size, pad_bins, pad_bp, method,
                                 )
                             else:
                                 data = slice_prediction(
                                     track.values, orig_start, orig_end, padded_start,
-                                    window_size, pad_bins,
+                                    window_size, pad_bins, pad_bp,
                                 )
                             hap_grp.create_dataset(out_name, data=np.array(data), compression="gzip")
                     write_elapsed = time.time() - t_write

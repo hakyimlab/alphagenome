@@ -19,7 +19,7 @@ os.environ.setdefault("XLA_FLAGS", " ".join([
     "--xla_gpu_deterministic_ops",
     "--xla_gpu_enable_scatter_determinism_expander=True",
     "--xla_gpu_enable_triton_gemm=False",
-    "--xla_gpu_autotune_level=0",
+    #"--xla_gpu_autotune_level=0",
 ]))
 os.environ.setdefault("XLA_PYTHON_CLIENT_MEM_FRACTION", "0.9")
 
@@ -101,6 +101,7 @@ def predict_reference_and_save(
     output_type_map,
     window_size=131072,
     pad_bins=0,
+    pad_bp=0,
     method="mean",
     aggregate=True,
     full_output=False,
@@ -123,6 +124,7 @@ def predict_reference_and_save(
         f.attrs["window_size"]  = window_size
         f.attrs["output_types"] = ",".join(requested_output_names)
         f.attrs["pad_bins"]     = pad_bins
+        f.attrs["pad_bp"]       = pad_bp
         f.attrs["method"]       = method
         f.attrs["aggregate"]    = aggregate
         f.attrs["full_output"]  = full_output
@@ -164,12 +166,12 @@ def predict_reference_and_save(
                         elif aggregate:
                             data = aggregate_prediction(
                                 track.values, orig_start, orig_end, padded_start,
-                                window_size, pad_bins, method,
+                                window_size, pad_bins, pad_bp, method,
                             )
                         else:
                             data = slice_prediction(
                                 track.values, orig_start, orig_end, padded_start,
-                                window_size, pad_bins,
+                                window_size, pad_bins, pad_bp,
                             )
                         hap_grp.create_dataset(out_name, data=np.array(data), compression="gzip")
                 write_elapsed = time.time() - t_write
@@ -222,6 +224,7 @@ def parse_args():
     p.add_argument("--device",        default=None)
     p.add_argument("--n-workers",     type=int, default=None)
     p.add_argument("--pad-bins",      type=int, default=None)
+    p.add_argument("--pad-bp",        type=int, default=None)
     p.add_argument("--method",        default=None, choices=["mean", "sum"])
     p.add_argument("--output-types",  nargs="+", default=None,
                    choices=list(PRED_ATTR_MAP.keys()))
@@ -250,6 +253,7 @@ def parse_args():
         "device":        cfg.get("device",       "cuda:0"),
         "n_workers":     cfg.get("n_workers",    1),
         "pad_bins":      cfg.get("pad_bins",     0),
+        "pad_bp":        cfg.get("pad_bp",       0),
         "method":        cfg.get("method",       "mean"),
         "output_types":  cfg.get("output_types", ["CHIP_TF"]),
         "skip_existing": cfg.get("skip_existing", True),
@@ -334,6 +338,7 @@ def _run_reference(args, model, intervals_df, output_type_map, all_timings):
         output_type_map=output_type_map,
         window_size=args.window_size,
         pad_bins=args.pad_bins,
+        pad_bp=args.pad_bp,
         method=args.method,
         aggregate=args.aggregate,
         full_output=args.full_output,
@@ -423,6 +428,7 @@ def _run_personalized(args, model, intervals_df, output_type_map, all_timings):
                     output_type_map=output_type_map,
                     window_size=args.window_size,
                     pad_bins=args.pad_bins,
+                    pad_bp=args.pad_bp,
                     method=args.method,
                     aggregate=args.aggregate,
                     full_output=args.full_output,

@@ -27,11 +27,14 @@
 set -euo pipefail
 
 AGGREGATE="${AGGREGATE:-mean}"
+BINS="${BINS:-}"
 OUTPUT_TYPES="${OUTPUT_TYPES:-embeddings_128bp}"
 FASTA_FILE="${FASTA_FILE:-}"
 
 FASTA_ARG=""
 [[ -n "$FASTA_FILE" ]] && FASTA_ARG="--fasta-file ${FASTA_FILE}"
+BINS_ARG=""
+[[ -n "$BINS" ]] && BINS_ARG="--bins ${BINS}"
 
 N_SAMPLES=$(wc -l < "${SAMPLES_FILE}")
 
@@ -67,7 +70,8 @@ CUDA_VISIBLE_DEVICES=0 python "${PREDICT_SCRIPT}" \
     --n-shards     "${N_SHARDS}" \
     --aggregate    "${AGGREGATE}" \
     --output-types "${OUTPUT_TYPES}" \
-    ${FASTA_ARG}
+    ${FASTA_ARG} \
+    ${BINS_ARG}
 
 echo "=============================="
 echo "End         : $(date)"

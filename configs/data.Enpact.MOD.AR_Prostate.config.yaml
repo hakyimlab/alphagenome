@@ -5,19 +5,29 @@
 # ── Data paths ─────────────────────────────────────────────────────────────────
 model_path:   /beagle3/haky/data/alpha_genome/weights/allfolds
 fasta_file:   /project2/haky/Data/hg_sequences/hg38/Homo_sapiens_assembly38.fasta
+vcf_dir:      /project2/haky/Data/1000G/vcf_snps_only
+vcf_pattern:  "ALL.{chrom}.shapeit2_integrated_SNPs_v2a_27022019.GRCh38.phased.vcf.gz"
 
 # ── Input files ────────────────────────────────────────────────────────────────
 bed_file:     /beagle3/haky/users/temi/projects/alphagenome/files/data.Enpact.AR_Prostate.tsv
 
 # ── Output ─────────────────────────────────────────────────────────────────────
-output_dir:   /scratch/midway2/temi/alphagenome/predictions.Enpact.AR_Prostate/reference_middle_embeddings_AR_Prostate/h5
+output_dir:   /scratch/midway2/temi/alphagenome/predictions.Enpact.AR_Prostate/reference_MOD/h5
+profile_dir:  /scratch/midway2/temi/alphagenome/predictions.Enpact.AR_Prostate/reference_MOD/profiles
 
 # ── Inference parameters ───────────────────────────────────────────────────────
-n_shards: 8
 window_size:   131072
-output_types: "embeddings_128bp"
-aggregate:     mean        # true → (n_tracks,) per interval; false → (n_bins, n_tracks)
-bins: [510, 511, 512, 513]
+output_types:
+  - CHIP_TF 
+  - CHIP_HISTONE
+  - ATAC
+  - DNASE 
+  - CAGE
+pad_bins:      1
+pad_bp: 256
+method:        mean        # mean or sum across bins (only used when aggregate: true)
+aggregate:     true        # true → (n_tracks,) per interval; false → (n_bins, n_tracks)
+full_output:   false        # true → raw model output (n_bins, n_tracks), no slicing at all
 
 # ── Runtime ────────────────────────────────────────────────────────────────────
 n_workers:      1          # Parsl I/O threads (keep low to avoid NFS contention)

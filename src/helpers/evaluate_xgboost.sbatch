@@ -7,8 +7,8 @@
 #SBATCH --cpus-per-task=4
 #SBATCH --mem-per-cpu=4G
 #SBATCH --time=00:30:00
-#SBATCH --output=/beagle3/haky/users/temi/projects/alphagenome/logs/evaluate_xgboost_%j.out
-#SBATCH --error=/beagle3/haky/users/temi/projects/alphagenome/logs/evaluate_xgboost_%j.err
+#SBATCH --output=/scratch/midway2/temi/alphagenome/predictions.Enpact.AR_Prostate/reference_middle_embeddings_AR_Prostate/logs/evaluate_xgboost_%j.out
+#SBATCH --error=/scratch/midway2/temi/alphagenome/predictions.Enpact.AR_Prostate/reference_middle_embeddings_AR_Prostate/logs/evaluate_xgboost_%j.err
 
 # Usage (positional arguments):
 #   sbatch evaluate_xgboost.sbatch \

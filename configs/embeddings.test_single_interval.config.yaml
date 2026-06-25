@@ -1,25 +1,19 @@
-# AlphaGenome inference configuration
-# All paths and parameters for predict.py
-# CLI flags override any value set here.
+# AlphaGenome embedding configuration — single interval, no aggregation
+# Returns full (1024, 3072) embedding tensor for chr10_101930867_101930876.
 
 # ── Data paths ─────────────────────────────────────────────────────────────────
 model_path:   /beagle3/haky/data/alpha_genome/weights/allfolds
 fasta_file:   /project2/haky/Data/hg_sequences/hg38/Homo_sapiens_assembly38.fasta
 
 # ── Input files ────────────────────────────────────────────────────────────────
-bed_file:     /beagle3/haky/users/temi/projects/alphagenome/files/data.Enpact.AR_Prostate.tsv
+bed_file:     /beagle3/haky/users/temi/projects/alphagenome/files/test_chr10_101930867_101930876.bed
 
 # ── Output ─────────────────────────────────────────────────────────────────────
-output_dir:   /scratch/midway2/temi/alphagenome/predictions.Enpact.AR_Prostate/reference_middle_embeddings_AR_Prostate/h5
+output_dir:   /scratch/midway2/temi/alphagenome/embeddings_test/chr10_101930867_101930876/h5
 
 # ── Inference parameters ───────────────────────────────────────────────────────
-n_shards: 8
-window_size:   131072
-output_types: "embeddings_128bp"
-aggregate:     mean        # true → (n_tracks,) per interval; false → (n_bins, n_tracks)
-bins: [510, 511, 512, 513]
-
-# ── Runtime ────────────────────────────────────────────────────────────────────
-n_workers:      1          # Parsl I/O threads (keep low to avoid NFS contention)
-skip_existing:  true       # skip samples whose HDF5 already exists
-profile:        true       # write per-GPU timing TSV
+n_shards:     1
+output_types: embeddings_128bp
+aggregate:    none   # no aggregation → full (1024, 3072) tensor per interval
+bins:         all    # no bin slicing
+skip_existing: false

@@ -5,8 +5,8 @@
 #SBATCH --mem-per-cpu=4G
 #SBATCH --job-name=evaluate_enpact
 #SBATCH --account=pi-haky
-#SBATCH --output=/beagle3/haky/users/temi/projects/alphagenome/logs/evaluate_enpact_%j.out
-#SBATCH --error=/beagle3/haky/users/temi/projects/alphagenome/logs/evaluate_enpact_%j.err
+#SBATCH --output=/scratch/midway2/temi/alphagenome/predictions.Enpact.AR_Prostate/reference_middle_embeddings_AR_Prostate/logs/evaluate_enpact_%j.out
+#SBATCH --error=/scratch/midway2/temi/alphagenome/predictions.Enpact.AR_Prostate/reference_middle_embeddings_AR_Prostate/logs/evaluate_enpact_%j.err
 #SBATCH --time=01:00:00
 #SBATCH --partition=caslake
 

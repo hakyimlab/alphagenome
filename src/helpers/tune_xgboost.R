@@ -30,7 +30,7 @@ option_list <- list(
     make_option("--model_rds_file",      help = "Output: best trained xgb.Booster RDS"),
     make_option("--tuning_results_file", help = "Output: all CV results TSV"),
     make_option("--metadata",            help = "Column name written to weights file"),
-    make_option("--n_configs",  type = "integer", default = 50L,
+    make_option("--n_configs",  type = "integer", default = 100L,
                 help = "Number of random parameter configurations to try [default: 50]"),
     make_option("--nfolds",     type = "integer", default = 5L,
                 help = "CV folds for each configuration [default: 5]"),

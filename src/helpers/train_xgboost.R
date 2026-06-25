@@ -35,11 +35,16 @@ option_list <- list(
                 help = "Threads for XGBoost [default: 12]"),
     make_option("--metadata",  help = "Column name written to weights file"),
     make_option("--features_group", default = NULL,
-                help = "Comma-separated feature-column prefix(es), e.g. embeddings_128bp")
+                help = "Comma-separated feature-column prefix(es), e.g. embeddings_128bp"),
+    make_option("--tuning_results_file", default = NULL,
+                help = "TSV.GZ of hyperparameter tuning results; best row (highest cv_auc_mean) overrides default params")
 )
 
 opt <- parse_args(OptionParser(option_list = option_list))
 print(opt)
+
+# opt <- list()
+# opt$train_data_file <- "/scratch/midway2/temi/alphagenome/predictions.Enpact.AR_Prostate/reference_middle_embeddings_AR_Prostate/training/training.embedding_128bp.Enpact.AR_Prostate.tsv.gz"
 
 suppressPackageStartupMessages({
     library(tidyverse)
@@ -77,18 +82,43 @@ print(glue("INFO — Class balance: {sum(y_train == 1)} positive / {sum(y_train 
 dtrain <- xgb.DMatrix(data = X_train, label = y_train)
 
 # ── XGBoost parameters ────────────────────────────────────────────────────────
-params <- list(
-    objective        = "binary:logistic",
-    eval_metric      = "auc",
-    eta              = 0.05,
-    max_depth        = 6,
-    subsample        = 0.8,
-    colsample_bytree = 0.5,   # sample 50% of 3072 dims per tree
-    min_child_weight = 5,
-    lambda           = 0.5,     # L2 regularisation
-    alpha            = 0.5,     # L1 regularisation
-    nthread          = opt$ncores
-)
+if (!is.null(opt$tuning_results_file)) {
+    if (!file.exists(opt$tuning_results_file)) stop("ERROR — Tuning results file not found.")
+    tuning_dt <- data.table::fread(opt$tuning_results_file)
+    best_row  <- tuning_dt[which.max(cv_auc_mean)]
+    print(glue("INFO — Using tuning results from {opt$tuning_results_file}"))
+    print(glue("INFO — Best tuning row: cv_auc_mean = {round(best_row$cv_auc_mean, 4)}"))
+    params <- list(
+        objective        = "binary:logistic",
+        eval_metric      = "auc",
+        eta              = best_row$eta,
+        max_depth        = as.integer(best_row$max_depth),
+        min_child_weight = best_row$min_child_weight,
+        gamma            = best_row$gamma,
+        subsample        = best_row$subsample,
+        colsample_bytree = best_row$colsample_bytree,
+        colsample_bylevel = best_row$colsample_bylevel,
+        lambda           = best_row$lambda,
+        alpha            = best_row$alpha,
+        max_delta_step   = best_row$max_delta_step,
+        nthread          = opt$ncores
+    )
+} else {
+    print("INFO — No tuning results file provided; using default parameters.")
+    params <- list(
+        objective        = "binary:logistic",
+        eval_metric      = "auc",
+        eta              = 0.05,
+        max_depth        = 6,
+        subsample        = 0.8,
+        colsample_bytree = 0.5,
+        min_child_weight = 5,
+        lambda           = 0.5,
+        alpha            = 0.5,
+        nthread          = opt$ncores
+    )
+}
+print(glue("INFO — XGBoost params: {paste(names(params), unlist(params), sep='=', collapse=', ')}"))
 
 # ── Cross-validation to find optimal nrounds ─────────────────────────────────
 set.seed(2023)

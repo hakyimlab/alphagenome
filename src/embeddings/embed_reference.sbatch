@@ -24,12 +24,15 @@ set -euo pipefail
 
 # ── Defaults for optional exports ─────────────────────────────────────────────
 AGGREGATE="${AGGREGATE:-mean}"
+BINS="${BINS:-}"
 OUTPUT_TYPES="${OUTPUT_TYPES:-embeddings_128bp}"
 FASTA_FILE="${FASTA_FILE:-}"   # empty → predict_embeddings.py uses its hg38 default
 
-# Build optional --fasta-file flag
+# Build optional flags
 FASTA_ARG=""
 [[ -n "$FASTA_FILE" ]] && FASTA_ARG="--fasta-file ${FASTA_FILE}"
+BINS_ARG=""
+[[ -n "$BINS" ]] && BINS_ARG="--bins ${BINS}"
 
 echo "=============================="
 echo "Job         : ${SLURM_ARRAY_JOB_ID:-local}_${SLURM_ARRAY_TASK_ID:-0}"
@@ -39,6 +42,7 @@ echo "BED file    : ${BED_FILE}"
 echo "Output dir  : ${OUTPUT_DIR}"
 echo "FASTA       : ${FASTA_FILE:-<default hg38>}"
 echo "Aggregate   : ${AGGREGATE}"
+echo "Bins        : ${BINS:-all}"
 echo "Types       : ${OUTPUT_TYPES}"
 echo "Script      : ${PREDICT_SCRIPT}"
 echo "Start       : $(date)"
@@ -57,7 +61,8 @@ CUDA_VISIBLE_DEVICES=0 python "${PREDICT_SCRIPT}" \
     --n-shards     "${N_SHARDS}" \
     --aggregate    "${AGGREGATE}" \
     --output-types "${OUTPUT_TYPES}" \
-    ${FASTA_ARG}
+    ${FASTA_ARG} \
+    ${BINS_ARG}
 
 echo "=============================="
 echo "End         : $(date)"

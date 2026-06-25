@@ -47,6 +47,7 @@
 #   fasta_file:   /path/to/genome.fasta  # default: hg38
 #   n_shards:     4
 #   aggregate:    mean               # mean | max | none
+#   bins:         center:4           # 'all', 'center:N', 'START:END', or [i,j,...] list
 #   output_types: embeddings_128bp   # embeddings_128bp[,embeddings_1bp]
 #   job_name:     my_job             # default: emb_<bed stem>
 #   time:         12:00:00
@@ -71,6 +72,7 @@ OUTPUT_DIR=""
 FASTA_FILE=""
 N_SHARDS=""
 AGGREGATE=""
+BINS=""
 OUTPUT_TYPES=""
 JOB_NAME=""
 TIME=""
@@ -90,6 +92,7 @@ while [[ $# -gt 0 ]]; do
         --fasta-file)   FASTA_FILE=$2;   shift 2 ;;
         --n-shards)     N_SHARDS=$2;     shift 2 ;;
         --aggregate)    AGGREGATE=$2;    shift 2 ;;
+        --bins)         BINS=$2;         shift 2 ;;
         --output-types) OUTPUT_TYPES=$2; shift 2 ;;
         --job-name)     JOB_NAME=$2;     shift 2 ;;
         --time)         TIME=$2;         shift 2 ;;
@@ -124,6 +127,18 @@ if v is not None:
     [[ -z "$FASTA_FILE" ]]   && { v="$(_yaml fasta_file)";   [[ -n "$v" ]] && FASTA_FILE="$v";   }
     [[ -z "$N_SHARDS" ]]     && { v="$(_yaml n_shards)";     [[ -n "$v" ]] && N_SHARDS="$v";     }
     [[ -z "$AGGREGATE" ]]    && { v="$(_yaml aggregate)";    [[ -n "$v" ]] && AGGREGATE="$v";    }
+    [[ -z "$BINS" ]]         && {
+        # bins may be a YAML list; serialize as '+'-joined to avoid SLURM export comma issues
+        v=$(python3 -c "
+import yaml
+c = yaml.safe_load(open('$CONFIG')) or {}
+v = c.get('bins')
+if v is None: pass
+elif isinstance(v, list): print('+'.join(str(i) for i in v))
+else: print(str(v).strip())
+" 2>/dev/null || true)
+        [[ -n "$v" ]] && BINS="$v"
+    }
     [[ -z "$OUTPUT_TYPES" ]] && { v="$(_yaml output_types)"; [[ -n "$v" ]] && OUTPUT_TYPES="$v"; }
     [[ -z "$JOB_NAME" ]]     && { v="$(_yaml job_name)";     [[ -n "$v" ]] && JOB_NAME="$v";     }
     [[ -z "$TIME" ]]         && { v="$(_yaml time)";         [[ -n "$v" ]] && TIME="$v";         }
@@ -211,6 +226,7 @@ if [[ "$MODE" == "personalized" ]]; then
 fi
 echo "N shards     : ${N_SHARDS}"
 echo "Aggregate    : ${AGGREGATE}"
+echo "Bins         : ${BINS:-all}"
 echo "Types        : ${OUTPUT_TYPES}"
 echo "Job name     : ${JOB_NAME}"
 echo "Time limit   : ${TIME}"
@@ -224,6 +240,7 @@ EXPORT_VARS+=",BED_FILE=${BED_FILE}"
 EXPORT_VARS+=",OUTPUT_DIR=${OUTPUT_DIR}"
 EXPORT_VARS+=",N_SHARDS=${N_SHARDS}"
 EXPORT_VARS+=",AGGREGATE=${AGGREGATE}"
+[[ -n "$BINS" ]] && EXPORT_VARS+=",BINS=${BINS}"
 EXPORT_VARS+=",OUTPUT_TYPES=${OUTPUT_TYPES}"
 [[ -n "$FASTA_FILE" ]] && EXPORT_VARS+=",FASTA_FILE=${FASTA_FILE}"
 
